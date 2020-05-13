@@ -7,6 +7,7 @@ use std::net::ToSocketAddrs;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Mutex;
 use std::time::SystemTime;
+use std::fmt::Debug;
 
 #[derive(Serialize)]
 pub struct LogRecord {
@@ -30,7 +31,7 @@ impl LogRecord {
 
 #[derive(Debug)]
 pub struct FluentdAppender {
-    encoder: Box<log4rs::encode::Encode>,
+    encoder: Box<dyn log4rs::encode::Encode>,
     sender: Mutex<Sender<LogRecord>>,
 }
 
@@ -44,7 +45,7 @@ impl FluentdAppender {
 }
 
 impl ::log4rs::append::Append for FluentdAppender {
-    fn append(&self, record: &Record) -> Result<(), Box<Error + Sync + Send>> {
+    fn append(&self, record: &Record) -> Result<(), Box<dyn Error + Sync + Send>> {
         let mut writer = SimpleWriter(Vec::<u8>::new());
         self.encoder.encode(&mut writer, record)?;
 
@@ -59,13 +60,13 @@ impl ::log4rs::append::Append for FluentdAppender {
 
 /// Builder for `FluentdAppender`.
 pub struct FluentdAppenderBuilder {
-    encoder: Option<Box<log4rs::encode::Encode>>,
+    encoder: Option<Box<dyn log4rs::encode::Encode>>,
     tag: String,
 }
 
 impl FluentdAppenderBuilder {
     /// Set custom encoder.
-    pub fn encoder(mut self, encoder: Box<log4rs::encode::Encode>) -> Self {
+    pub fn encoder(mut self, encoder: Box<dyn log4rs::encode::Encode>) -> Self {
         self.encoder = Some(encoder);
         self
     }
@@ -77,8 +78,7 @@ impl FluentdAppenderBuilder {
     /// Consume builder and produce `FluentdAppender`.
     pub fn build<A>(self, addr: A) -> FluentdAppender
     where
-        A: ToSocketAddrs + Clone,
-        A: Send + 'static,
+        A: ToSocketAddrs + Clone + Debug + Send + 'static,
     {
         let (sender, receiver): (Sender<LogRecord>, Receiver<LogRecord>) = ::std::sync::mpsc::channel();
         let tag_clone = self.tag.clone();
@@ -129,10 +129,10 @@ struct FluentdAppenderConfig {
 struct FluentdAppenderDeserializer;
 
 impl log4rs::file::Deserialize for FluentdAppenderDeserializer {
-    type Trait = log4rs::append::Append;
+    type Trait = dyn log4rs::append::Append;
     type Config = FluentdAppenderConfig;
 
-    fn deserialize(&self, config: Self::Config, deserializers: &log4rs::file::Deserializers) -> Result<Box<Self::Trait>, Box<Error + Sync + Send>> {
+    fn deserialize(&self, config: Self::Config, deserializers: &log4rs::file::Deserializers) -> Result<Box<Self::Trait>, Box<dyn Error + Sync + Send>> {
         let mut builder = FluentdAppender::builder();
 
         if let Some(encoder) = config.encoder {

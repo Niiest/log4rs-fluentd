@@ -6,4 +6,4 @@ extern crate serde;
 extern crate serde_derive;
 
 mod fluentd;
-pub use fluentd::*;
+pub use crate::fluentd::*;
